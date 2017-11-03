@@ -1,0 +1,26 @@
+
+# Potential JSON Object Format for Weather Centre
+
+{
+  "domain": "<Domain Name>",
+    "Name Servers": [
+      {
+        "ns_provider": "<provider name>",
+        "ns": "<name server>"
+      }
+    ],
+    "CDN Provider": "<CDN Provider Name>",
+    "CA Vendor": "<CA Vendor>",
+    "Payment Provider": "<Payment Provider",
+    "Refreshed": "<Timestamp of last refresh>",
+    "Organisation": "<Organisation Name>",
+    "Org_Sector": "<Org Sector>",
+    "mail_servers": ["<mx server1>","<mx server2>","<mx serverN>"],
+    "mail_provider": "<mail provider>"
+
+
+
+}
+
+
+# Potential JSON Object Format for Infrastrcuture Check
