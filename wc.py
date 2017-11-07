@@ -9,12 +9,19 @@ import resources
 
 def request_domains(url, params):
     # Make the request to the API and grab the JSON response
+    # Used to collect the information from the GDS Domains Registry
+
     headers = {'accept': 'application/json'}
     resp = requests.get(url=url, params=params, headers=headers)
     data = json.loads(resp.text)
     return data
 
+
 def domain_to_fqdn(domain_data):
+
+    # Helper routine to take the provided domain and add .gov.uk to the end in order
+    # to then perform the NS lookup
+
     fqdn = []
     for key, value in domain_data.items():
         #domain_data['item'][0]['hostname'] = domain_data['item'][0]['hostname'+'.gov.uk']
@@ -45,29 +52,7 @@ def do_query(domain_to_query, query_type):
     except dns.resolver.NoNameservers:
         return "SERVFAIL"
 
-    return answer.rrset.items
-
-def query_mailserver(domain_to_query):
-
-    try:
-        answer = dns.resolver.query(domain_to_query, 'MX')
-    except dns.resolver.NXDOMAIN:
-        return "NXDOMAIN"
-    except dns.resolver.NoAnswer:
-        return "NoAnswer"
-
-
-    return answer.rrset.items
-
-def query_cdn(domain_to_query):
-
-    try:
-        answer = dns.resolver.query(domain_to_query, 'CNAME')
-    except dns.resolver.NXDOMAIN:
-        return "NXDOMAIN"
-    except dns.resolver.NoAnswer:
-        return "NoAnswer"
-
+    # Return the set of items from the query, NS, MX, CNAME, A record etc.
     return answer.rrset.items
 
 def add_new_ns_provider(name_server):
@@ -99,9 +84,17 @@ def add_new_ns_provider(name_server):
         return "Unknown"
 
 def parse_mx(mx_record):
+
+    # Parse the provided MX record and check it against
+    # our database of MX providers
+
     for mx_provider in resources.mx_providers():
         if mx_provider in mx_record:
             return resources.mx_providers[mx_provider]
+
+    # If a match isn't found, return unknown and print it to the console
+    print (mx_record, "is unknown")
+    return 'Unknown'
 
 def parse_ns(name_server):
 
@@ -123,7 +116,7 @@ def build_ns_data(domains):
     data = []
 
     for domain in domains:
-        ns = query_nameserver(domain+'.gov.uk')
+        ns = do_query(domain+'.gov.uk', 'NS')
         if 'NXDOMAIN' in ns or 'NoAnswer' in ns:
             print('Domain',domain,"doesn't exist")
         else:
@@ -225,12 +218,25 @@ def build_dataset():
      #               print ("\nDomain", domain, "has an unknown DNS provider", entry['ns'])
 
 
+def build_base(registry_data):
 
-#main()
+    # Extract the base entries from the hostname and organisation
+    # ID within the GDS domain registry
 
-#build_dataset()
+    base = []
+    entry = {}
 
+    for key, value in registry_data.items():
+        entry["domain"] = value['item'][0]['hostname']
+        try:
+            entry["reg_org"] = value['item'][0]['organisation']
+        except KeyError:
+            entry["reg_org"] = "Unknown"
 
+        base.append(entry)
+
+        entry = {}
+    return base
 
 def load_domains():
 
@@ -241,19 +247,12 @@ def load_domains():
     domain_list = []
 
     # Set the number of records to be retrived from the server
-    PARAMS = {'page-index': '1', 'page-size': '500'}
+    PARAMS = {'page-index': '1', 'page-size': '50'}
 
-    # Grab the domain data from the GDS Domains API
+    # Grab the raw domain data from the GDS Domains API
     domain_data = request_domains(API_URL, PARAMS)
 
-    domains = domain_to_fqdn(domain_data)
-
-    for domain in domains:
-        domain_dict["domain"] = domain
-        domain_list.append(domain_dict)
-        domain_dict = {}
-
-    print (domain_list)
+    base_data = build_base(domain_data)
 
     myClient = MongoClient('localhost', 27017)
 
@@ -261,46 +260,146 @@ def load_domains():
 
     wc_1_db = db.wc_1
 
-    obj_id = wc_1_db.insert_many(domain_list)
+    obj_id = wc_1_db.insert_many(base_data)
 
 
 def add_org_type():
 
+    #Function to enrich the domain data with organisational details
+
+    # Get DB Handle
     myClient = MongoClient('localhost', 27017)
-
     db = myClient.test_db
-
     wc_1_db = db.wc_1
+
+    # Check to see if the domain includes 'parish', 'towncouncil' or '-dc' and set the Org L3 accordingly
 
     for document in wc_1_db.find():
         if 'parish' in document['domain'] or '-pc' in document['domain']:
-            wc_1_db.update_one({'_id':document['_id']},
-                               {"$set": {"Org_L1": "Local Government"}})
             wc_1_db.update_one({'_id': document['_id']},
-                               {"$set": {"Org_L2": "Parish Council"}})
+                               {"$set": {"org-l3": "Parish Council"}})
 
         elif 'towncouncil' in document['domain'] or '-tc' in document['domain']:
             wc_1_db.update_one({'_id': document['_id']},
-                               {"$set": {"Org_L1": "Local Government"}})
-            wc_1_db.update_one({'_id': document['_id']},
-                               {"$set": {"Org_L2": "Town Council"}})
+                               {"$set": {"org-l3": "Town Council"}})
 
         elif '-dc' in document['domain']:
             wc_1_db.update_one({'_id': document['_id']},
-                               {"$set": {"Org_L1": "Local Government"}})
-            wc_1_db.update_one({'_id': document['_id']},
-                               {"$set": {"Org_L2": "District Council"}})
+                               {"$set": {"org-l3": "District Council"}})
+
+    # Go over the domains in the DB and extract the Org details from the domain registry
+    # Extract the org code and type and then handle the parsing of this accordingly
+    # Once we know the details, set the relavent details in the DB
+
+    for document in wc_1_db.find():
+        if not 'Unknown' in document['reg_org']:
+
+            org_type, org_code = document['reg_org'].split(':')
+
+            if 'local-authority-eng' in document['reg_org']:
+
+                org_name, org_l2 = add_lgov_org(org_code)
+
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l1": "Local Government"}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l2": org_l2}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-name": org_name}})
+
+            elif 'government-organisation' in document['reg_org']:
+
+                org_name = add_gov_org(org_code)
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l1": "Government Organisation"}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-name": org_name}})
+
+            elif 'internal-drainage-board' in document['reg_org']:
+
+                org_name = add_idb_org(org_code)
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l1": "Internal Drainage Board"}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-name": org_name}})
+
+            elif 'principal-local-authority' in document['reg_org']:
+
+                org_name = add_pla_org(org_code)
+
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l1": "Local Government"}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-l2": "Principal Local Authority"}})
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"org-name": org_name}})
+
+def add_pla_org(org_code):
+
+    API_URL = 'https://principal-local-authority.register.gov.uk/record/' + org_code
+
+    headers = {'accept': 'application/json'}
+    resp = requests.get(url=API_URL, headers=headers)
+
+    data = json.loads(resp.text)
+
+    return data[org_code]['item'][0]['official-name']
+
+def add_idb_org(org_code):
+
+    API_URL = 'https://internal-drainage-board.register.gov.uk/record/' + org_code
+
+    headers = {'accept': 'application/json'}
+    resp = requests.get(url=API_URL, headers=headers)
+
+    data = json.loads(resp.text)
+
+    return data[org_code]['item'][0]['name']
+
+def add_gov_org(org_code):
+
+    API_URL = 'https://government-organisation.register.gov.uk/record/' + org_code
+
+    headers = {'accept': 'application/json'}
+    resp = requests.get(url=API_URL, headers=headers)
+
+    data = json.loads(resp.text)
+
+    return data[org_code]['item'][0]['name']
+
+def add_lgov_org(org_code):
+
+    API_URL = 'https://local-authority-eng.register.gov.uk/record/' + org_code
+
+    headers = {'accept': 'application/json'}
+    resp = requests.get(url=API_URL, headers=headers)
+
+    data = json.loads(resp.text)
+
+    org_name = data[org_code]['item'][0]['official-name']
+    org_type_code = data[org_code]['item'][0]['local-authority-type']
+
+    if 'UA' in org_type_code:
+        org_type = 'Unitary Authority'
+    elif 'NMD' in org_type_code:
+        org_type = 'Non-metropolitan District'
+    elif 'CTY' in org_type_code:
+        org_type = 'County Council'
+    elif 'MD' in org_type_code:
+        org_type = 'Metropolitan district'
+    elif 'SLA' in org_type_code:
+        org_type = 'Strategic Regional Authority'
+    elif 'CC' in org_type_code:
+        org_type = 'City corporation'
+    elif 'LBO' in org_type_code:
+        org_type = 'London Borough'
+
+    return org_name, org_type
 
 
-
-
-    # mycollection.update_one({'_id':mongo_id}, {"$set": post}, upsert=False)
-
-def add_org_type_from_reg():
-
-
+#load_domains()
 add_org_type()
-#add_org_type_from_reg()
+
 
 def new_main():
 

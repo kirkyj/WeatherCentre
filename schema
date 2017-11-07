@@ -13,8 +13,9 @@
     "CA Vendor": "<CA Vendor>",
     "Payment Provider": "<Payment Provider",
     "Refreshed": "<Timestamp of last refresh>",
-    "Organisation": "<Organisation Name>",
-    "Org_Sector": "<Org Sector>",
+    "org_l1": "<Top Level Designator e.g. Local Government>",
+    "org_l2": "<Second Level Org e.g Parish Council, Unitry Authority>",
+    "org_name": "<Organisation Name>",
     "mail_servers": ["<mx server1>","<mx server2>","<mx serverN>"],
     "mail_provider": "<mail provider>"
 
