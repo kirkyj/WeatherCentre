@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+{% block body %}
+<body>
+
+
+	<div class="row">
+		<div class="col-sm-4"></div>
+		<div class="col-sm-4">
+			<h3>
+				Organisation Search Results
+			</h3>
+			<p>
+				 Found {{ count }} domains
+			</p>
+
+            {% if count > 0 %}
+
+            <div class="row">
+				<div class="col-md-12">
+                    <table class="table table-hover table-condensed">
+				        <thead>
+					        <tr>
+						        <th>
+							        Organisation
+						        </th>
+						        <th>
+							        Domain(s)
+						        </th>
+					        </tr>
+				        </thead>
+				        <tbody>
+                            {% for entry in list %}
+                            <tr>
+                                <td rowspan="{{ list[entry]|length }}"><a href="orgdd?org={{ entry }}">{{ entry }}</a></td>
+                                {% set first = 'true' %}
+                                {% for domain in list[entry] %}
+                                    {% if first == 'true' %}
+                                        <td><a href="domaindd?domain={{ domain }}">{{ domain }}.gov.uk</a></td></tr>
+                                        {% set first = 'false' %}
+                                    {% else %}
+                                        <tr><td><a href="domaindd?domain={{ domain }}">{{ domain }}.gov.uk</a></td></tr>
+                                    {% endif %}
+                                {% endfor %}
+                            {% endfor %}
+				        </tbody>
+			        </table>
+                </div>
+            </div>
+
+            {% endif %}
+        </div>
+
+</body>
+{% endblock %}

@@ -402,11 +402,21 @@ dns_providers = {"awsdns": "Amazon Route 53",
                  }
 
 
-mx_providers = {'GOOGLE.COM': 'Google',
-                'Google': 'Google',
+mx_providers = {'google.com': 'Google',
+                'GOOGLE.COM': 'Google',
+                'googlemail.com': 'Google',
                 'outlook.com': 'Microsoft',
                 'messagelabs.com': 'Symantec Messagelabs',
-                'mimecast.com': 'Mimecast'
+                'mimecast.com': 'Mimecast',
+                'mailcontrol.com': 'Forcepoint',
+                'avgcloud.net': 'AVG',
+                'fusemail.net': 'FuseMail',
+                'emailsrvr.com': 'Rackspace',
+                'pulsant.com': 'Pulsant',
+                'netnames.net': 'Netnames',
+                'hcidata.com': 'HCI Data',
+                'nexus.org.uk': 'Tyne and Wear Public Transport Executive',
+                'zen.co.uk': 'Zen Internet'
                 }
 
 

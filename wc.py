@@ -1,11 +1,13 @@
 import dns.resolver
 import requests
 import json
-from collections import defaultdict
 from pymongo import MongoClient
 import pymongo
 import resources
-
+import ssl
+from OpenSSL import crypto
+import socket
+from collections import OrderedDict, Counter
 
 def request_domains(url, params):
     # Make the request to the API and grab the JSON response
@@ -16,6 +18,13 @@ def request_domains(url, params):
     data = json.loads(resp.text)
     return data
 
+def db_connect(collection):
+
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db[collection]
+
+    return wc_1_db
 
 def domain_to_fqdn(domain_data):
 
@@ -27,19 +36,6 @@ def domain_to_fqdn(domain_data):
         #domain_data['item'][0]['hostname'] = domain_data['item'][0]['hostname'+'.gov.uk']
         fqdn.append(value['item'][0]['hostname'])
     return fqdn
-
-def query_nameserver(domain_to_query):
-
-    try:
-        answer = dns.resolver.query(domain_to_query, 'NS')
-    except dns.resolver.NXDOMAIN:
-        return "NXDOMAIN"
-    except dns.resolver.NoAnswer:
-        return "NoAnswer"
-
-    # Return the first name server entry that we get back from the lookup
-    # return answer.rrset[0].to_text()
-    return answer.rrset.items
 
 def do_query(domain_to_query, query_type):
 
@@ -53,7 +49,10 @@ def do_query(domain_to_query, query_type):
         return "SERVFAIL"
 
     # Return the set of items from the query, NS, MX, CNAME, A record etc.
-    return answer.rrset.items
+    if 'A' in query_type:
+        return answer.rrset.items[0]
+    else:
+        return answer.rrset.items
 
 def add_new_ns_provider(name_server):
     # Need to strip the name server to remove text up to the first dot
@@ -83,18 +82,28 @@ def add_new_ns_provider(name_server):
     else:
         return "Unknown"
 
-def parse_mx(mx_record):
+def parse_record(record, type):
 
-    # Parse the provided MX record and check it against
-    # our database of MX providers
+    if type == 'NS':
+        # Iterate over the DNS provider domain dictionary keys and look for a match against the NS provided
+        for provider_domain in resources.dns_providers:
+            # If a match is found, return the NS Provider name from the dns_provider dictionary
+            if provider_domain in record:
+                return resources.dns_providers[provider_domain]
+                # If we don't find a match in the current dictionary, we need to lookup using
+                # Whois to find out who the provider actually is.
 
-    for mx_provider in resources.mx_providers():
-        if mx_provider in mx_record:
-            return resources.mx_providers[mx_provider]
+        return add_new_ns_provider(name_server)
 
-    # If a match isn't found, return unknown and print it to the console
-    print (mx_record, "is unknown")
-    return 'Unknown'
+    elif type == 'MX':
+        for mx_provider in resources.mx_providers:
+            if mx_provider in record:
+                return resources.mx_providers[mx_provider]
+
+        if 'gov.uk' in record:
+            return 'Government Hosted'
+        else:
+            return 'Unknown'
 
 def parse_ns(name_server):
 
@@ -110,38 +119,35 @@ def parse_ns(name_server):
     #print (name_server, "is an unknown domain")
     #return "Unknown"
 
-def build_ns_data(domains):
+def build_ns_data(domain):
 
-    result = {}
-    data = []
+    result = []
 
-    for domain in domains:
-        ns = do_query(domain+'.gov.uk', 'NS')
-        if 'NXDOMAIN' in ns or 'NoAnswer' in ns:
-            print('Domain',domain,"doesn't exist")
-        else:
-            result["domain"] = domain
-            result["name_servers"] = []
-            for server in ns:
-                result["name_servers"].append({"ns": str(server), "ns_provider": parse_ns(str(server))})
-            data.append(result)
-            result = {}
+    ns = do_query(domain+'.gov.uk', 'NS')
+    if 'NXDOMAIN' in ns or 'NoAnswer' in ns:
+        print('Domain',domain,"doesn't exist")
+    else:
+        for server in ns:
+            result.append({"ns": str(server), "ns_provider": parse_ns(str(server)), "ns_ip": str(do_query(str(server), 'A'))})
+    #print(data)
 
-    print(data)
+    return result
 
-    return data
+def build_mx_data(domain):
 
-#def build_mx_data(data):
+    result = []
 
-    # data will already have the NS data included and so needs to be augmented with MX data
-
-#    for domain in data:
-        # Query the domain for the raw MX data and add the result back in to data
-        # Do this in a separate
-        # Also need to parse the MX record and identify the name MX provider and add this in as well.
-
-    # Return the augmented data set
-#    return data
+    mx = do_query(domain+'.gov.uk', 'MX')
+    if 'NXDOMAIN' in mx or 'NoAnswer' in mx:
+        return 'No MX Record'
+    else:
+        for server in mx:
+            server = str(server).split(' ',1)
+            if len(server) > 1:
+                result.append({"mx": server[1], "mx_provider": parse_record(server[1],'MX'), "mx_ip": str(do_query(server[1], 'A'))})
+            else:
+                result.append({"mx": server[0], "mx_provider": parse_record(server[0], 'MX'), "mx_ip": str(do_query(server[0], 'A'))})
+        return result
 
 def add_data_to_db(data):
 
@@ -165,58 +171,66 @@ def add_data_to_db(data):
         else:
             print(entry["domain"], " found in the database")
 
-def build_dataset():
+def add_ns_data():
 
-    ns_result = {}
+    ns_data = []
 
-    # Main GDS Register URL for domains information
-    API_URL = 'https://government-domain.register.gov.uk/records'
-
-    # Set the number of records to be retrived from the server
-    PARAMS = {'page-index': '1', 'page-size': '500'}
-
-    # Grab the domain data from the GDS Domains API
-    domain_data = request_domains(API_URL,PARAMS)
-
-    # Extract the domain names from the returned data and append '.gov.uk' to each. Store the domains in to a list called 'domains'
-
-    domains = domain_to_fqdn(domain_data)
+    # Get DB Handle
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db.wc_1
 
     # Build the dataset mapping a domain to a number of name servers.
     # Data will be a list of dicts with the format {{"domain": "<domain>"}, {"name_servers" : [{"ns":"<name-server>", "ns_provider":"<ns_provider>"}]}}
 
-    ns_result = build_ns_data(domains)
-
-    # Next we need to add in the MX data on top of the NS data
-
-    mx_result = build_mx_data(ns_result)
-
-
-    print (resources.dns_providers)
-
-    #try:
-    #obj_id = wc_1_db.insert_many(result)
-    #print (len(result))
-    #obj_id = wc_1_db.update_many({}, result, upsert=True)
-    #except pymongo.errors.BulkWriteError as bwe:
-        #inserted_ids = [doc['_id'] for doc in result if not is_failed(doc, bwe) ]
-    #else:
-        #inserted_ids = obj_id.inserted_ids
+    for document in wc_1_db.find():
+        ns_data = build_ns_data(document['domain'])
+        #print(ns_data)
+        wc_1_db.update_one({'_id': document['_id']},
+                           {"$set": {"name_servers": ns_data}})
 
 
-    #for domain in domains:
-    #    mx = do_query(domain+'.gov.uk','MX')
-    #    for mailserver in mx:
-    #        #result[domain]["email provider"] = mx
-    #        print (domain,mailserver)
+def add_mx_data():
+
+    wc_1_db = db_connect()
+
+    for document in wc_1_db.find():
+        #print(document['domain']+'.gov.uk')
+        mx_data = build_mx_data(document['domain'])
+        if not 'No MX Record' in mx_data:
+            wc_1_db.update_one({'_id': document['_id']},
+                               {"$set": {"mail_servers": mx_data}})
 
 
-    #for domain, data in result.items():
-     #   for ns_data, ns_entry in data.items():
-     #       for entry in ns_entry:
-     #           if 'Unknown' in entry['ns_provider']:
-     #               print ("\nDomain", domain, "has an unknown DNS provider", entry['ns'])
+#add_mx_data()
 
+def add_whois_email():
+
+    uri = 'https://investigate.api.umbrella.com/whois/'
+
+    apikey = 'b192381f-f0d2-4780-b107-907982592566'
+
+    # Get DB Handle
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db.wc_1
+
+    for document in wc_1_db.find():
+        req = requests.get(url=uri + document['domain'] + '.gov.uk', headers={'Authorization': 'Bearer ' + apikey})
+        data = json.loads(req.text)
+
+        if not 'registrantEmail' in data:
+            wc_1_db.update_one({'_id': document['_id']},
+                               {"$set": {"registrantEmail": "Unknown"}})
+
+        else:
+            if data['registrantEmail'] == '':
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"registrantEmail": "Unknown"}})
+
+            else:
+                wc_1_db.update_one({'_id': document['_id']},
+                                   {"$set": {"registrantEmail": data['registrantEmail']}})
 
 def build_base(registry_data):
 
@@ -247,10 +261,12 @@ def load_domains():
     domain_list = []
 
     # Set the number of records to be retrived from the server
-    PARAMS = {'page-index': '1', 'page-size': '50'}
+    PARAMS = {'page-index': '1', 'page-size': '500'}
 
     # Grab the raw domain data from the GDS Domains API
     domain_data = request_domains(API_URL, PARAMS)
+
+    #Extract all of the domains and organisation data from the raw GDS domain registry data
 
     base_data = build_base(domain_data)
 
@@ -260,8 +276,9 @@ def load_domains():
 
     wc_1_db = db.wc_1
 
-    obj_id = wc_1_db.insert_many(base_data)
+    # Dump the extracted data to MongoDB
 
+    obj_id = wc_1_db.insert_many(base_data)
 
 def add_org_type():
 
@@ -396,10 +413,89 @@ def add_lgov_org(org_code):
 
     return org_name, org_type
 
+def add_ca_details():
+
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db.wc_1
+
+    for document in wc_1_db.find():
+        target = 'www.'+document['domain']+'.gov.uk'
+
+        try:
+
+            sock = socket.create_connection((target, 443), timeout=2)
+
+            cert = ssl.get_server_certificate((target, 443))
+            sock.close()
+            new_cert = crypto.load_certificate(crypto.FILETYPE_PEM, cert)
+            issuer = new_cert.get_issuer()
+            subject = new_cert.get_subject()
+
+            for component in issuer.get_components():
+                if component[0] == b'O':
+                    wc_1_db.update_one({'_id': document['_id']},
+                                      {"$set": {"ca-issuer": str(component[1], 'utf-8')}})
+
+
+        except socket.error:
+            print("Socket Error")
+            #pass
+
+def add_a_rr():
+
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db.wc_1
+
+    for document in wc_1_db.find():
+        target = 'www.'+document['domain']+'.gov.uk'
+
+        result = do_query(target,'A')
+        print (result)
+
+def create_ns_collection():
+
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+
+    wc_1_db = db.wc_1
+    ns_db = db.nameservers
+
+    name_servers = {}
+
+    # List of servers that a provider operates. Each server has an entry of the form
+    # {'ns': ns_name, 'ns_ip': ns_ip}
+    provider = {}
+    providers = []
+    servers = []
+
+    for document in wc_1_db.find():
+        for entry in document['name_servers']:
+            providers.append(entry['ns_provider'])
+    providers = list(set(providers))
+
+    for item in providers:
+        provider['provider'] = item
+        ns_db.insert_one(provider)
+    #print (provider)
+            #servers.append({'ns': entry['ns'], 'ns_ip': entry['ns_ip']})
+        #name_servers['servers'] = servers
+        #servers = []
+        #print (name_servers)
+        #ns_db.find({"provider": {"$regex": name_servers['provider']}})
+        #obj_id = ns_db.insert_one(name_servers)
+        #else:
+        #    pass
+        #name_servers = {}
 
 #load_domains()
-add_org_type()
-
+#add_org_type()
+#add_ns_data()
+#add_whois_email()
+#add_ca_details()
+#add_a_rr()
+#create_ns_collection()
 
 def new_main():
 
@@ -436,3 +532,101 @@ def new_main():
     output = Counter(converted)
 
     print (output)
+
+def testing():
+
+    query = "City and County of Swansea Council"
+
+    myClient = MongoClient('localhost', 27017)
+    db = myClient.test_db
+    wc_1_db = db.wc_1
+
+    domains = []
+    ns_providers = []
+    ca_providers = []
+
+    for result in wc_1_db.find({"org-name": {"$regex": query}}):
+
+        domains.append(result['domain'])
+        ca_providers.append(result['ca-issuer'])
+        for ns in result['name_servers']:
+            ns_providers.append(ns['ns_provider'])
+
+    print (domains)
+    print (ns_providers)
+    print (ca_providers)
+
+#testing()
+
+
+
+def build_top_providers():
+
+    # Function to extract and identify the top providers
+
+    wc_1_db = db_connect('wc_1')
+    ns_db = db_connect('nameservers')
+    ns_db = db_connect('ca')
+
+    ns_provider = []
+    ns_totals = []
+    ns_other = 0
+    ns_summary = {}
+
+    ca_providers = []
+
+    mx_providers = []
+    mx_totals = []
+
+
+    for document in wc_1_db.find():
+        for entry in document['name_servers']:
+            ns_provider.append(entry['ns_provider'])
+
+        # Convert to set and then a list to remove duplicate entries.
+        # We now have a list of the providers covering the domain
+        ns_provider = list(set(ns_provider))
+
+        # Now we need to add these providers to the master list, ns_totals
+
+        for entry in ns_provider:
+            ns_totals.append(entry)
+
+        ns_provider = []
+
+        # Lets also grab the CA Issuer details at the same time and add
+        # this to the ca_providers
+
+        try:
+            if document['ca-issuer']:
+                ca_providers.append(document['ca-issuer'])
+        except:
+            pass
+
+        # TODO - Also need to grab the mail server details and add this to its own list
+
+    # ns_totals now contains a list of all of the NS providers used across all of the domains with duplicates
+    # per domain removed i.e. domain x has three NS and all are Rackspace will be reduced to a single entry
+    # through the set conversion.
+
+    ns_totals = dict(Counter(ns_totals))
+    ca_providers = dict(Counter(ca_providers))
+
+    # Summarise the data such that any provider with less than 5 domains
+    # associated with it is put in to an 'Other' Bucket.
+
+    # Todo - Should we store the data associated with the summary somehow so that this can be retrieved?
+
+    for entry in ns_totals:
+        if ns_totals[entry] > 5:
+            ns_summary[entry] = ns_totals[entry]
+        else:
+            ns_other = ns_other + ns_totals[entry]
+
+    ns_summary['Other'] = ns_other
+
+    ca_providers = OrderedDict(sorted(ca_providers.items(), key= lambda t: t[1], reverse=True))
+
+    print(ca_providers)
+
+build_top_providers()

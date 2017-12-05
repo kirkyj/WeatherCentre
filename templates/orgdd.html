@@ -1,0 +1,58 @@
+{% extends "layout.html" %}
+{% block body %}
+
+<body>
+
+
+	<div class="row">
+		<div class="col-md-12">
+			<h3>
+				Details for {{ org }}
+			</h3>
+            <div class="row">
+                <div class="col-md-6">
+			        <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                              <th colspan="2">Organisation snapshot</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>Organisation Type</td>
+                                <td></td>
+                            </tr>
+                            <tr>
+                                <td>Domains</td>
+                                <td>{% for domain in domains %}
+                                    <a href="domaindd?domain={{ domain }}">{{ domain }}.gov.uk</a>
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Name Server Providers</td>
+                                <td>{% for ns in ns_providers %}
+                                    {{ ns }}
+                                    {% endfor %}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>CA Providers</td>
+                                <td>{% for ca in ca_providers %}
+                                    {{ ca }}
+                                    {% endfor %}
+                                </td>
+                            </tr>
+
+                        </tbody>
+
+			        </table>
+		        </div>
+            </div>
+        </div>
+    </div>
+
+
+</body>
+
+{% endblock %}

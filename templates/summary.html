@@ -1,0 +1,85 @@
+{% extends "layout.html" %}
+{% block body %}
+<body>
+	<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.6/angular.min.js"></script>
+    <script src='https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.min.js'></script>
+    <script src='https://cdn.jsdelivr.net/angular.chartjs/latest/angular-chart.min.js'></script>
+
+
+	<div class="row">
+		<div class="col-md-12" ng-app="app">
+			<h3>
+				Weather Centre Summary
+			</h3>
+			<p>
+				 This is the Weather Centre summary screen. Here you can see a summary of the findings across all domains.
+			</p>
+
+
+			<div class="row">
+				<div class="col-md-6" ng-controller="DNS">
+					<h3>
+						DNS Providers
+					</h3>
+
+                    <canvas class="chart chart-doughnut" chart-data="data" chart-labels="labels" chart-options="options" chart-click="onClickSlice"></canvas>
+
+                    <script>
+
+                        var app = angular.module('app', ['chart.js']);
+
+                        app.controller('DNS', ['$scope', '$window', '$location', function ($scope, $window, $location) {
+                            $scope.labels = [{% for entry in ns_providers %}
+                                                "{{ entry }}",
+                                                {% endfor %}];
+                            $scope.data = [{% for entry in ns_providers %}
+                                                {{ ns_providers[entry] }},
+                                                {% endfor %}];
+                            $scope.options = {cutoutPercentage: 60, legend: {display: true, position: 'right'}};
+                            $scope.onClickSlice = function (points, ev) {
+                                            var pr = points[0]._view.label;
+                                            $window.location.href = '/nspdd?provider=' + pr;
+
+
+
+                                            }
+
+                        }]);
+
+                    </script>
+
+
+				</div>
+
+				<div class="col-md-6" ng-controller="CA">
+					<h3>
+						CA Providers
+					</h3>
+
+                    <canvas class="chart chart-doughnut" chart-data="cadata" chart-labels="calabels" chart-options="caoptions"></canvas>
+
+                    <script>
+
+                        app.controller('CA', ['$scope', function ($scope) {
+                            $scope.calabels = [{% for entry in ca_providers %}
+                                                "{{ entry }}",
+                                                {% endfor %}];
+                            $scope.cadata = [{% for entry in ca_providers %}
+                                                {{ ca_providers[entry] }},
+                                                {% endfor %}];
+                            $scope.caoptions = {cutoutPercentage: 60, legend: {display: true, position: 'right'}};
+
+                        }]);
+
+
+                    </script>
+
+				</div>
+
+			</div>
+		</div>
+	</div>
+
+    </body>
+
+{% endblock %}

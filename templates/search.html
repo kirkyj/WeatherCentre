@@ -1,0 +1,57 @@
+{% extends "layout.html" %}
+{% block body %}
+  <body>
+
+	<div class="row">
+		<div class="col-sm-4"></div>
+		<div class="col-sm-4">
+			<h3>
+				Weather Centre
+			</h3>
+			<p>
+				 Weather Centre helps you identify the extent that your infrastructure relies on third party suppliers.
+			</p>
+			<div class="row">
+				<div class="col-md-12">
+					<ul class="nav nav-tabs">
+						<li class="active"><a href="#domain" data-toggle="tab" role="tab">Domain</a>
+						</li>
+						<li><a href="#org" data-toggle="tab" role="tab">Organisation</a>
+						</li>
+					</ul>
+
+					<!-- Tab Panes -->
+					<div class="tab-content">
+						<div role="tabpanel" class="tab-pane active" id="domain">
+							<p>Please enter a domain name to search for in the box below.</p>
+							<form role="form" action="domain" method="post">
+								<div class="form-group">
+									<label for="domain">Domain</label>
+									<input type="text" class="form-control" id="domain" placeholder="Enter domain name" name="domain" required>
+
+								</div>
+
+								<button type="submit" class="btn btn-primary">Search</button>
+							</form>
+						</div>
+						<div role="tabpanel" class="tab-pane" id="org">
+							<p>Please enter an organisation name to search for in the box below.</p>
+							<form role="form" action="org" method="post">
+								<div class="form-group">
+									<label for="org">Organisation</label>
+									<input type="text" class="form-control" id="org" placeholder="Enter organisation name" name="org" required>
+								</div>
+								<button type="submit" class="btn btn-primary">Search</button>
+							</form>
+
+						</div>
+					</div>
+
+
+
+				</div>
+			</div>
+		</div>
+	</div>
+  </body>
+{% endblock %}

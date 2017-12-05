@@ -1,0 +1,46 @@
+{% extends "layout.html" %}
+{% block body %}
+<body>
+
+
+	<div class="row">
+		<div class="col-md-12">
+			<h3>
+				Details for name server {{ ns }}</a>
+			</h3>
+            <div class="row">
+                <div class="col-md-6">
+			        <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                              <th colspan="2">Name Server Details</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>NS IP</td>
+                                <td>{{ ns_ip }}</td>
+                            </tr>
+                            <tr>
+                                <td>Total domains served</td>
+                                <td>{{ domains|length }}</td>
+                            </tr>
+                            <tr>
+                                <td>NS Organisation</td>
+                                <td>{{ ns_provider }}</td>
+                            </tr>
+                            <tr>
+                                <td>Domains hosted by this server</td>
+                                <td>{% for domain in domains %}<a href="domaindd?domain={{ domain }}">{{ domain }}.gov.uk</a> {% endfor %}</td>
+                            </tr>
+
+                        </tbody>
+
+			        </table>
+		        </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+{% endblock %}
