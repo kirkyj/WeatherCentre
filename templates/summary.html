@@ -6,6 +6,7 @@
     <script src='https://cdn.jsdelivr.net/angular.chartjs/latest/angular-chart.min.js'></script>
 
 
+
 	<div class="row">
 		<div class="col-md-12" ng-app="app">
 			<h3>
@@ -77,9 +78,120 @@
 				</div>
 
 			</div>
+
+			<div class="row">
+				<div class="col-md-12" ng-controller="ASN">
+					<h3>ASN</h3>
+					<canvas class="chart chart-doughnut" chart-data="asndata" chart-labels="asnlabels" chart-options="asnoptions"></canvas>
+
+                    <script>
+
+                        app.controller('ASN', ['$scope', function ($scope) {
+                            $scope.asnlabels = [{% for entry in asn_providers %}
+                                                "{{ entry }}",
+                                                {% endfor %}];
+                            $scope.asndata = [{% for entry in asn_providers %}
+                                                {{ asn_providers[entry] }},
+                                                {% endfor %}];
+                            $scope.asnoptions = {cutoutPercentage: 60, legend: {display: true, position: 'right'}};
+
+                        }]);
+
+
+                    </script>
+
+				</div>
+			</div>
+
+			<!-- Trial Dynamic Data Below -->
+
+			<div class="row">
+				<div class="col-md-12" ng-controller="test">
+					<h3>Test Data</h3>
+
+					<canvas class="chart chart-doughnut" chart-data="testdata" chart-labels="testlabels" chart-options="testoptions"></canvas>
+                    <label for="dataset">Data Set Selection</label>
+                    <select name="dataset" ng-model="dataset">
+                        <option value="set1">Set 1</option>
+                        <option value="set2">Set 2</option>
+                    </select>
+
+                    <script>
+
+                    app.controller('test', ['$scope', function ($scope, $http)
+                    {
+                            $scope.testlabels = [{% for entry in asn_providers %}
+                                                "{{ entry }}",
+                                               {% endfor %}];
+                            $scope.testdata = [{% for entry in asn_providers %}
+                                                {{ asn_providers[entry] }},
+                                               {% endfor %}];
+                            $scope.testoptions = {cutoutPercentage: 60, legend: {display: true, position: 'right'}};
+
+                            $http.post
+
+                            $scope.new_data = function ()
+                            {
+                                    dataset = "set1";
+                                    $.ajax({
+                                            url: "{{url_for('change_data')}}",
+                                            contentType: 'application/json;charset=UTF-8',
+                                            data: {'set':dataset},
+                                            type: 'POST',
+                                            success: function(data)
+                                            {
+                                                var labels = [];
+                                                var new_data = [];
+
+                                                Object.keys(data.results).forEach(function (key) {
+                                                    var test = data.results[key];
+                                                    Object.keys(test).forEach(function (key) {
+                                                        labels.push(Object.keys(test));
+                                                        new_data.push(test[key]);
+                                                    });
+                                                });
+                                            console.log(labels);
+                                            console.log(new_data);
+
+                                            $scope.testlabels = labels;
+                                            $scope.testdata = new_data;
+
+
+
+                                            },
+                                            error: function(data)
+                                            {
+                                                console.log(data);
+                                            }
+                                    });
+                            };
+                        }]);
+
+
+
+
+                    //app.controller('test', ['$scope', function ($scope)
+                    //{
+                     //   $scope.testlabels = [{% for entry in asn_providers %}
+                     //                           "{{ entry }}",
+                     //                           {% endfor %}];
+                     //   $scope.testdata = [{% for entry in asn_providers %}
+                      //                          {{ asn_providers[entry] }},
+                      //                          {% endfor %}];
+                      //  $scope.testoptions = {cutoutPercentage: 60, legend: {display: true, position: 'right'}};
+//
+                    //}]);
+
+
+                    </script>
+
+				</div>
+			</div>
+
+
 		</div>
 	</div>
+</body>
 
-    </body>
 
 {% endblock %}

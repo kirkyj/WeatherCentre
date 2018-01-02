@@ -1,0 +1,47 @@
+{% extends "layout.html" %}
+{% block body %}
+
+<div class="row">
+    <div class="col-md-2"></div>
+        <div class="col-md-8">
+            Sorry but the domain {{ domain }} doesn't exist. Would you like to add it?
+        </div>
+</div>
+<div class="row">
+    <div class="col-md-2"></div>
+    <div class="col-md-8">
+        <form role="form" id="addnew">
+            <button id ="add" type="button" class="btn btn-primary">Add</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    $(document).ready(function() {
+        $("#add").click(function(){
+
+            var dom = {"domain":"{{ domain }}"};
+
+            // alert(domain);
+
+            // Make Ajax Request
+                $.ajax({
+                        url: '/addnew',
+                        data: dom,
+                        type: 'GET',
+                        success: function(response) {
+                               console.log(response);
+                        },
+                        error: function(error) {
+                                console.log(response);
+                        }
+
+            });
+        });
+      });
+
+</script>
+
+{% endblock %}
+
+

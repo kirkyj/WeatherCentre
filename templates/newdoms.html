@@ -1,0 +1,117 @@
+{% extends "layout.html" %}
+{% block body %}
+<body>
+
+    <script src="//cdnjs.cloudflare.com/ajax/libs/datatables/1.9.4/jquery.dataTables.min.js"></script>
+	<script type="text/javascript" src="https://cdn.datatables.net/v/bs/dt-1.10.16/datatables.min.js"></script>
+	<link rel="stylesheet" href="https://cdn.datatables.net/1.10.16/css/jquery.dataTables.min.css">
+	<link rel="stylesheet" href="https://cdn.datatables.net/select/1.2.4/css/select.dataTables.min.css">
+	<script src="https://cdn.datatables.net/1.10.16/js/dataTables.bootstrap.min.js"></script>
+	<script src="https://cdn.datatables.net/select/1.2.4/js/dataTables.select.min.js"></script>
+	<script src="https://cdn.datatables.net/plug-ins/1.10.16/dataRender/ellipsis.js"></script>
+
+    <div class="row">
+		<div class="col-md-2"></div>
+		<div class="col-md-8">
+				<h3>
+					Newly discovered domains within the past 30 days (gov.uk, ac.uk, sch.uk, police.uk, nhs.uk)
+				</h3>
+
+				<table class="datatable table table-hover table-condensed">
+				        <thead>
+					        <tr>
+
+						        <th>
+							        Domain
+						        </th>
+								<th>
+									Sector
+								</th>
+						        <th>
+							        First Seen
+						        </th>
+					        </tr>
+				        </thead>
+				        <tbody>
+                            {% for newentry in newdoms %}
+                            <tr>
+
+                                <td>{{ newentry['domain'] }}</td>
+								<td>{% if 'nhs' in newentry['domain'] %} NHS
+									{% elif 'police' in newentry['domain'] %} Police
+									{% elif 'sch.uk' in newentry['domain'] %} School
+									{% elif 'ac.uk' in newentry['domain'] %} University
+									{% elif 'gov.uk' in newentry['domain'] %} Government
+									{% endif %}
+								</td>
+                                <td>{{ newentry['seen'] }}</td>
+                            </tr>{% endfor %}
+				        </tbody>
+				</table>
+		</div>
+	</div>
+		<div class="row">
+			<div class="col-md-2"></div>
+			<div class="col-md-8">
+				<h3>
+					Potential government related domains discovered in the past 30 days
+				</h3>
+
+				<table class="datatable table table-hover table-condensed">
+				        <thead>
+					        <tr>
+						        <th>
+							        Domain
+						        </th>
+						        <th>
+							        First Seen
+						        </th>
+					        </tr>
+				        </thead>
+				        <tbody>
+                            {% for oddentry in odddoms %}
+                            <tr>
+                                <td>{{ oddentry['domain'] }}</td>
+                                <td>{{ oddentry['seen'] }}</td>
+                            </tr>{% endfor %}
+				        </tbody>
+				</table>
+			</div>
+		</div>
+
+</body>
+
+        <script type="text/javascript">
+
+		$(document).ready(function() {
+			$('.datatable').dataTable({
+				"sPaginationType": "full",
+				columnDefs: [ {
+					// orderable: false,
+					// className: 'select-checkbox',
+					targets: 0,
+					render: $.fn.dataTable.render.ellipsis( 30 )
+				} ],
+				//select: {
+				//	style:	'os',
+				//	selector: 'td:first-child'
+				//}
+
+			});
+			$('.datatable').each(function(){
+				var datatable = $(this);
+				// SEARCH - Add the placeholder for Search and Turn this into in-line form control
+				var search_input = datatable.closest('.dataTables_wrapper').find('div[id$=_filter] input');
+				search_input.attr('placeholder', 'Search');
+				search_input.addClass('form-control input-sm');
+				// LENGTH - Inline-Form control
+				var length_sel = datatable.closest('.dataTables_wrapper').find('div[id$=_length] select');
+				length_sel.addClass('form-control input-sm');
+			});
+
+		});
+		</script>
+
+</html>
+
+{% endblock %}
