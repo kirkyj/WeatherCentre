@@ -19,7 +19,7 @@ This function will enrich the base domain data with organisation information col
 
 This function will add DNS Name Server information in to the 'all_dom' collection within the database specificed when the function is called. The function will make a query and capture all NS records for a given domain. It will parse the returned data to identify the provider of the NS infrastructure using a dictionary in resources.py. If a name service provider isn't known, the script will attempt to collect it via the Whoisxmlapi service. Note that the returned entry is not stored for future use. It will also perform an A record lookup for each name server and store all of this in the all_dom collection.
 
-add_whois_email(database)
+### add_whois_email(database)
 
 As the name suggests, this function will add the registered e-mail address from Whois. It uses the Cisco Investigate API to perform this lookup. Results are stored in the all_dom collection in the database provided. 
 
@@ -38,7 +38,7 @@ Finally, this function augments the domain record in the all_dom collection with
 ### MongoDB Schema (all_dom)
 
 Once all of the above functions have been run, the all_dom collection will have the following schema:
-
+'
 {
     "_id" : ObjectId("5a306be9ce7fa75b5d32ecb8"),
     "domain" : "forest-heath.gov.uk",
@@ -71,3 +71,4 @@ Once all of the above functions have been run, the all_dom collection will have 
     "a_rr" : "81.145.21.157",
     "asn_org" : "British Telecommunications PLC"
 }
+'
