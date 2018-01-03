@@ -38,8 +38,8 @@ Finally, this function augments the domain record in the all_dom collection with
 ### MongoDB Schema (all_dom)
 
 Once all of the above functions have been run, the all_dom collection will have the following schema:
-'
-{
+>
+`{
     "_id" : ObjectId("5a306be9ce7fa75b5d32ecb8"),
     "domain" : "forest-heath.gov.uk",
     "reg_org" : "local-authority-eng:SED",
@@ -71,4 +71,4 @@ Once all of the above functions have been run, the all_dom collection will have 
     "a_rr" : "81.145.21.157",
     "asn_org" : "British Telecommunications PLC"
 }
-'
+`
