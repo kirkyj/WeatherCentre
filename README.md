@@ -63,7 +63,7 @@ Once all of the above functions have been run, the all_dom collection will have 
             "ns_ip" : "217.32.105.91"
         }
     ],
-    "registrantEmail" : "james.wager@westsuffolk.gov.uk",
+    "registrantEmail" : "******@******",
     "ca-issuer" : "Symantec Corporation",
     "asn" : "2856",
     "country" : "United Kingdom",
